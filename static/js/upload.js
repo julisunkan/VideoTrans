@@ -148,39 +148,84 @@ document.addEventListener('DOMContentLoaded', function() {
         // Create FormData
         const formData = new FormData(uploadForm);
 
-        // Upload file
-        fetch('/upload', {
-            method: 'POST',
-            body: formData
-        })
-        .then(response => response.json())
-        .then(data => {
-            loadingModal.hide();
-            
-            if (data.success) {
-                window.location.href = data.redirect_url;
-            } else {
-                alert(data.error || 'Upload failed. Please try again.');
+        uploadInProgress = true;
+
+        // Create XMLHttpRequest for progress tracking
+        const xhr = new XMLHttpRequest();
+        
+        // Update modal content for upload progress
+        const modalBody = document.querySelector('#loadingModal .modal-body');
+        modalBody.innerHTML = `
+            <div class="text-center p-4">
+                <div class="mb-3">
+                    <div class="progress" style="height: 25px;">
+                        <div id="uploadProgress" class="progress-bar progress-bar-striped progress-bar-animated" 
+                             role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                        </div>
+                    </div>
+                    <small class="text-muted mt-2 d-block" id="uploadStatus">Preparing upload...</small>
+                </div>
+                <h5 id="uploadText">Uploading file...</h5>
+                <p class="text-muted mb-0">Please wait while we upload and process your file</p>
+            </div>
+        `;
+        
+        const uploadProgressBar = document.getElementById('uploadProgress');
+        const uploadStatus = document.getElementById('uploadStatus');
+        const uploadText = document.getElementById('uploadText');
+
+        // Track upload progress
+        xhr.upload.addEventListener('progress', function(e) {
+            if (e.lengthComputable) {
+                const percentComplete = Math.round((e.loaded / e.total) * 100);
+                uploadProgressBar.style.width = percentComplete + '%';
+                uploadProgressBar.textContent = percentComplete + '%';
+                uploadStatus.textContent = `Uploaded ${formatFileSize(e.loaded)} of ${formatFileSize(e.total)}`;
             }
-        })
-        .catch(error => {
+        });
+
+        // Handle completion
+        xhr.addEventListener('load', function() {
+            uploadInProgress = false;
+            if (xhr.status === 200) {
+                try {
+                    const data = JSON.parse(xhr.responseText);
+                    if (data.success) {
+                        uploadText.textContent = 'Upload completed! Redirecting...';
+                        uploadProgressBar.style.width = '100%';
+                        uploadProgressBar.textContent = '100%';
+                        uploadStatus.textContent = 'Upload successful';
+                        
+                        setTimeout(() => {
+                            loadingModal.hide();
+                            window.location.href = data.redirect_url;
+                        }, 1000);
+                    } else {
+                        loadingModal.hide();
+                        alert(data.error || 'Upload failed. Please try again.');
+                    }
+                } catch (e) {
+                    loadingModal.hide();
+                    alert('Upload failed. Invalid response from server.');
+                }
+            } else {
+                loadingModal.hide();
+                alert('Upload failed. Server error: ' + xhr.status);
+            }
+        });
+
+        // Handle errors
+        xhr.addEventListener('error', function() {
+            uploadInProgress = false;
             loadingModal.hide();
-            console.error('Upload error:', error);
             alert('Upload failed. Please check your connection and try again.');
         });
+
+        // Start upload
+        xhr.open('POST', '/upload');
+        xhr.send(formData);
     });
 
     // Prevent page unload during upload
     let uploadInProgress = false;
-    
-    uploadForm.addEventListener('submit', function() {
-        uploadInProgress = true;
-    });
-
-    window.addEventListener('beforeunload', function(e) {
-        if (uploadInProgress) {
-            e.preventDefault();
-            e.returnValue = 'Upload in progress. Are you sure you want to leave?';
-        }
-    });
 });
