@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Video and Audio Subtitle Generator{% endblock %}</title>
+    
+    <!-- Bootstrap CSS with Replit Dark Theme -->
+    <link href="https://cdn.replit.com/agent/bootstrap-agent-dark-theme.min.css" rel="stylesheet">
+    
+    <!-- Font Awesome Icons -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    
+    <!-- Custom CSS -->
+    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+    
+    <!-- Additional head content -->
+    {% block head %}{% endblock %}
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="{{ url_for('index') }}">
+                <i class="fas fa-video me-2"></i>
+                Subtitle Generator
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'index' %}active{% endif %}" href="{{ url_for('index') }}">
+                            <i class="fas fa-home me-1"></i>Home
+                        </a>
+                    </li>
+                    {% if session.session_id %}
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'progress' %}active{% endif %}" href="{{ url_for('progress') }}">
+                            <i class="fas fa-tasks me-1"></i>Progress
+                        </a>
+                    </li>
+                    {% if session.output_files %}
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'result' %}active{% endif %}" href="{{ url_for('result') }}">
+                            <i class="fas fa-download me-1"></i>Results
+                        </a>
+                    </li>
+                    {% endif %}
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-dark text-light py-4 mt-5">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-8">
+                    <h6 class="mb-3">
+                        <i class="fas fa-video me-2"></i>
+                        Video and Audio Subtitle Generator
+                    </h6>
+                    <p class="text-muted small mb-2">
+                        Generate accurate subtitles from your media files using AI transcription and translation.
+                        All processing is done locally for your privacy.
+                    </p>
+                    <div class="d-flex gap-3">
+                        <span class="badge bg-success">
+                            <i class="fas fa-shield-alt me-1"></i>Privacy Protected
+                        </span>
+                        <span class="badge bg-info">
+                            <i class="fas fa-microchip me-1"></i>Local Processing
+                        </span>
+                        <span class="badge bg-warning">
+                            <i class="fas fa-language me-1"></i>60+ Languages
+                        </span>
+                    </div>
+                </div>
+                <div class="col-md-4 text-md-end">
+                    <h6 class="mb-3">Supported Formats</h6>
+                    <div class="small text-muted">
+                        <div class="mb-1">
+                            <strong>Audio:</strong> MP3, WAV, FLAC, M4A, AAC
+                        </div>
+                        <div class="mb-1">
+                            <strong>Video:</strong> MP4, MKV, MOV, AVI, WEBM
+                        </div>
+                        <div>
+                            <strong>Subtitles:</strong> SRT, VTT, ASS
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <hr class="my-3">
+            <div class="row align-items-center">
+                <div class="col-md-6">
+                    <p class="text-muted small mb-0">
+                        &copy; {{ moment().format('YYYY') }} Subtitle Generator. Built with Flask and Whisper AI.
+                    </p>
+                </div>
+                <div class="col-md-6 text-md-end">
+                    <small class="text-muted">
+                        <i class="fas fa-clock me-1"></i>
+                        Files auto-deleted after 24 hours
+                    </small>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Bootstrap JavaScript -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Socket.IO (only if needed) -->
+    {% block socketio %}{% endblock %}
+    
+    <!-- Additional scripts -->
+    {% block scripts %}{% endblock %}
+
+    <!-- Global JavaScript for common functionality -->
+    <script>
+        // Add active state to current navigation item
+        document.addEventListener('DOMContentLoaded', function() {
+            const currentPath = window.location.pathname;
+            const navLinks = document.querySelectorAll('.navbar-nav .nav-link');
+            
+            navLinks.forEach(link => {
+                const href = link.getAttribute('href');
+                if (href === currentPath) {
+                    link.classList.add('active');
+                } else {
+                    link.classList.remove('active');
+                }
+            });
+        });
+
+        // Global error handler for fetch requests
+        window.handleFetchError = function(error) {
+            console.error('Request failed:', error);
+            
+            // Show user-friendly error message
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'alert alert-danger alert-dismissible fade show position-fixed';
+            errorDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; max-width: 400px;';
+            errorDiv.innerHTML = `
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                <strong>Network Error:</strong> Please check your connection and try again.
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            
+            document.body.appendChild(errorDiv);
+            
+            // Auto-remove after 5 seconds
+            setTimeout(() => {
+                if (errorDiv.parentNode) {
+                    errorDiv.remove();
+                }
+            }, 5000);
+        };
+
+        // Global progress indicator for long operations
+        window.showGlobalLoading = function(message = 'Processing...') {
+            const existingLoader = document.getElementById('globalLoader');
+            if (existingLoader) existingLoader.remove();
+            
+            const loader = document.createElement('div');
+            loader.id = 'globalLoader';
+            loader.className = 'position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center';
+            loader.style.cssText = 'background: rgba(0,0,0,0.8); z-index: 9999;';
+            loader.innerHTML = `
+                <div class="text-center text-light">
+                    <div class="spinner-border text-primary mb-3" role="status" style="width: 3rem; height: 3rem;"></div>
+                    <h5>${message}</h5>
+                </div>
+            `;
+            
+            document.body.appendChild(loader);
+        };
+
+        window.hideGlobalLoading = function() {
+            const loader = document.getElementById('globalLoader');
+            if (loader) loader.remove();
+        };
+    </script>
+</body>
+</html>

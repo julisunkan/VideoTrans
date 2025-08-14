@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Results - Subtitle Generator</title>
+    <link href="https://cdn.replit.com/agent/bootstrap-agent-dark-theme.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+</head>
+<body>
+    <div class="container py-5">
+        <div class="row justify-content-center">
+            <div class="col-lg-10">
+                <div class="text-center mb-5">
+                    <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
+                    <h1 class="display-4 mb-3">Subtitles Generated!</h1>
+                    <p class="lead text-muted">Your subtitles are ready for download in multiple formats</p>
+                </div>
+
+                <!-- Video Preview (if video file) -->
+                {% if session_data.file_type == 'video' %}
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-play me-2"></i>Video Preview with Subtitles
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="video-container">
+                            <video id="videoPlayer" controls class="w-100" style="max-height: 400px;">
+                                <source src="{{ url_for('download_file', filename=session_data.filename) }}" type="video/mp4">
+                                {% for file in output_files %}
+                                    {% if file.format == 'VTT' %}
+                                        <track kind="subtitles" src="{{ url_for('download_file', filename=file.filename) }}" 
+                                               srclang="{{ file.language }}" label="{{ file.language.upper() }}" default>
+                                    {% endif %}
+                                {% endfor %}
+                                Your browser does not support the video tag.
+                            </video>
+                        </div>
+                        <div class="mt-3">
+                            <small class="text-muted">
+                                <i class="fas fa-info-circle me-1"></i>
+                                Use the CC button on the video player to toggle subtitles
+                            </small>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Download Options -->
+                <div class="card mb-4">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-download me-2"></i>Download Subtitles
+                        </h5>
+                        <a href="{{ url_for('download_zip') }}" class="btn btn-primary">
+                            <i class="fas fa-file-archive me-2"></i>Download All (ZIP)
+                        </a>
+                    </div>
+                    <div class="card-body">
+                        {% if output_files %}
+                            <div class="row">
+                                {% for file in output_files %}
+                                <div class="col-md-4 mb-3">
+                                    <div class="download-item">
+                                        <div class="d-flex align-items-center justify-content-between p-3 border rounded">
+                                            <div>
+                                                <h6 class="mb-1">{{ file.format }} - {{ file.language.upper() }}</h6>
+                                                <small class="text-muted">{{ file.filename }}</small>
+                                            </div>
+                                            <a href="{{ url_for('download_file', filename=file.filename) }}" 
+                                               class="btn btn-outline-primary btn-sm">
+                                                <i class="fas fa-download"></i>
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <div class="text-center py-4">
+                                <i class="fas fa-exclamation-triangle fa-2x text-warning mb-3"></i>
+                                <h5>No subtitle files generated</h5>
+                                <p class="text-muted">There was an issue generating the subtitle files.</p>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- File Information -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-info-circle me-2"></i>File Information
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <dl class="row">
+                                    <dt class="col-sm-4">Original File:</dt>
+                                    <dd class="col-sm-8">{{ session_data.original_filename }}</dd>
+                                    
+                                    <dt class="col-sm-4">File Type:</dt>
+                                    <dd class="col-sm-8">
+                                        <span class="badge bg-secondary">{{ session_data.file_type.upper() }}</span>
+                                    </dd>
+                                    
+                                    <dt class="col-sm-4">Source Language:</dt>
+                                    <dd class="col-sm-8">
+                                        {% if session_data.source_language == 'auto' %}
+                                            Auto-detected
+                                            {% if session_data.transcript %}
+                                                ({{ session_data.transcript.language.upper() }})
+                                            {% endif %}
+                                        {% else %}
+                                            {{ session_data.source_language.upper() }}
+                                        {% endif %}
+                                    </dd>
+                                </dl>
+                            </div>
+                            <div class="col-md-6">
+                                <dl class="row">
+                                    <dt class="col-sm-4">Target Languages:</dt>
+                                    <dd class="col-sm-8">
+                                        {% for lang in session_data.target_languages %}
+                                            <span class="badge bg-primary me-1">{{ lang.upper() }}</span>
+                                        {% endfor %}
+                                    </dd>
+                                    
+                                    <dt class="col-sm-4">Upload Time:</dt>
+                                    <dd class="col-sm-8">{{ session_data.upload_time }}</dd>
+                                    
+                                    <dt class="col-sm-4">Total Files:</dt>
+                                    <dd class="col-sm-8">{{ output_files|length }} subtitle files</dd>
+                                </dl>
+                            </div>
+                        </div>
+
+                        {% if session_data.transcript %}
+                        <div class="mt-3">
+                            <h6>Transcription Details:</h6>
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <strong>Detected Language:</strong> {{ session_data.transcript.language.upper() }}
+                                </div>
+                                <div class="col-md-4">
+                                    <strong>Confidence:</strong> {{ "%.1f%%" | format(session_data.transcript.language_probability * 100) }}
+                                </div>
+                                <div class="col-md-4">
+                                    <strong>Duration:</strong> {{ "%.1f seconds" | format(session_data.transcript.duration) }}
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Transcript Preview -->
+                {% if session_data.transcript and session_data.transcript.segments %}
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-file-alt me-2"></i>Transcript Preview
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div style="max-height: 300px; overflow-y: auto;">
+                            {% for segment in session_data.transcript.segments[:10] %}
+                            <div class="transcript-segment mb-2 p-2 border-start border-3 border-primary">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div class="flex-grow-1">
+                                        <p class="mb-1">{{ segment.text }}</p>
+                                    </div>
+                                    <small class="text-muted ms-2">
+                                        {{ "%.1f" | format(segment.start) }}s - {{ "%.1f" | format(segment.end) }}s
+                                    </small>
+                                </div>
+                            </div>
+                            {% endfor %}
+                            {% if session_data.transcript.segments|length > 10 %}
+                            <div class="text-center mt-3">
+                                <small class="text-muted">
+                                    Showing first 10 segments of {{ session_data.transcript.segments|length }} total
+                                </small>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Actions -->
+                <div class="text-center">
+                    <a href="{{ url_for('index') }}" class="btn btn-success btn-lg me-3">
+                        <i class="fas fa-plus me-2"></i>Process Another File
+                    </a>
+                    <button class="btn btn-outline-secondary" onclick="window.print()">
+                        <i class="fas fa-print me-2"></i>Print Results
+                    </button>
+                </div>
+
+                <!-- Auto-delete Notice -->
+                <div class="alert alert-warning mt-4">
+                    <i class="fas fa-clock me-2"></i>
+                    <strong>Auto-deletion:</strong> All uploaded files and generated subtitles will be automatically 
+                    deleted after 24 hours for your privacy and security.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Enable subtitle tracks for video player
+        document.addEventListener('DOMContentLoaded', function() {
+            const video = document.getElementById('videoPlayer');
+            if (video) {
+                // Show text tracks by default
+                video.addEventListener('loadedmetadata', function() {
+                    const tracks = video.textTracks;
+                    if (tracks.length > 0) {
+                        tracks[0].mode = 'showing';
+                    }
+                });
+            }
+        });
+    </script>
+</body>
+</html>

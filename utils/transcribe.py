@@ -1,0 +1,231 @@
+import os
+import logging
+import tempfile
+import subprocess
+from datetime import datetime
+try:
+    import noisereduce as nr
+    NOISEREDUCE_AVAILABLE = True
+except ImportError:
+    nr = None
+    NOISEREDUCE_AVAILABLE = False
+    logging.warning("noisereduce not available, audio cleaning will be skipped")
+import soundfile as sf
+import ffmpeg
+from faster_whisper import WhisperModel
+from googletrans import Translator
+import threading
+
+class TranscriptionService:
+    def __init__(self):
+        """Initialize the transcription service."""
+        self.model = None
+        self.translator = Translator()
+        self.model_lock = threading.Lock()
+        
+        # Whisper supported languages
+        self.supported_languages = {
+            'auto': 'Auto-detect',
+            'en': 'English',
+            'es': 'Spanish',
+            'fr': 'French',
+            'de': 'German',
+            'it': 'Italian',
+            'pt': 'Portuguese',
+            'ru': 'Russian',
+            'ja': 'Japanese',
+            'ko': 'Korean',
+            'zh': 'Chinese',
+            'ar': 'Arabic',
+            'hi': 'Hindi',
+            'tr': 'Turkish',
+            'pl': 'Polish',
+            'nl': 'Dutch',
+            'sv': 'Swedish',
+            'da': 'Danish',
+            'no': 'Norwegian',
+            'fi': 'Finnish',
+            'cs': 'Czech',
+            'sk': 'Slovak',
+            'hu': 'Hungarian',
+            'ro': 'Romanian',
+            'bg': 'Bulgarian',
+            'hr': 'Croatian',
+            'sl': 'Slovenian',
+            'et': 'Estonian',
+            'lv': 'Latvian',
+            'lt': 'Lithuanian',
+            'uk': 'Ukrainian',
+            'be': 'Belarusian',
+            'ca': 'Catalan',
+            'eu': 'Basque',
+            'gl': 'Galician',
+            'is': 'Icelandic',
+            'mt': 'Maltese',
+            'cy': 'Welsh',
+            'ga': 'Irish',
+            'mk': 'Macedonian',
+            'sq': 'Albanian',
+            'az': 'Azerbaijani',
+            'ka': 'Georgian',
+            'hy': 'Armenian',
+            'he': 'Hebrew',
+            'ur': 'Urdu',
+            'fa': 'Persian',
+            'ps': 'Pashto',
+            'sd': 'Sindhi',
+            'bn': 'Bengali',
+            'ne': 'Nepali',
+            'si': 'Sinhala',
+            'my': 'Myanmar',
+            'km': 'Khmer',
+            'lo': 'Lao',
+            'vi': 'Vietnamese',
+            'th': 'Thai',
+            'ms': 'Malay',
+            'id': 'Indonesian',
+            'tl': 'Filipino',
+            'sw': 'Swahili',
+            'am': 'Amharic',
+            'yo': 'Yoruba',
+            'zu': 'Zulu',
+            'af': 'Afrikaans',
+            'mg': 'Malagasy',
+            'so': 'Somali',
+            'ha': 'Hausa',
+            'ig': 'Igbo'
+        }
+    
+    def get_whisper_model(self):
+        """Get or initialize the Whisper model."""
+        with self.model_lock:
+            if self.model is None:
+                try:
+                    # Use base model for better performance, can be changed to 'small', 'medium', 'large'
+                    self.model = WhisperModel("base", device="cpu", compute_type="int8")
+                    logging.info("Whisper model loaded successfully")
+                except Exception as e:
+                    logging.error(f"Failed to load Whisper model: {str(e)}")
+                    raise
+            return self.model
+    
+    def extract_audio(self, video_path, session_id):
+        """Extract audio from video file using FFmpeg."""
+        try:
+            output_path = os.path.join('outputs', f'audio_{session_id}.wav')
+            
+            # Use ffmpeg-python to extract audio
+            stream = ffmpeg.input(video_path)
+            audio = stream.audio
+            out = ffmpeg.output(audio, output_path, acodec='pcm_s16le', ac=1, ar='16000')
+            ffmpeg.run(out, overwrite_output=True, quiet=True)
+            
+            logging.info(f"Audio extracted successfully: {output_path}")
+            return output_path
+            
+        except Exception as e:
+            logging.error(f"Audio extraction failed: {str(e)}")
+            raise Exception(f"Failed to extract audio: {str(e)}")
+    
+    def clean_audio(self, audio_path, session_id):
+        """Clean audio using noise reduction."""
+        try:
+            if not NOISEREDUCE_AVAILABLE:
+                logging.info("Noise reduction not available, using original audio")
+                return audio_path
+                
+            # Read audio file
+            data, rate = sf.read(audio_path)
+            
+            # Apply noise reduction
+            if nr is not None:
+                reduced_noise = nr.reduce_noise(y=data, sr=rate)
+            else:
+                reduced_noise = data
+            
+            # Save cleaned audio
+            cleaned_path = os.path.join('outputs', f'cleaned_audio_{session_id}.wav')
+            sf.write(cleaned_path, reduced_noise, rate)
+            
+            logging.info(f"Audio cleaned successfully: {cleaned_path}")
+            return cleaned_path
+            
+        except Exception as e:
+            logging.error(f"Audio cleaning failed: {str(e)}")
+            # If cleaning fails, return original audio
+            logging.warning("Using original audio without cleaning")
+            return audio_path
+    
+    def transcribe_audio(self, audio_path, language=None):
+        """Transcribe audio using faster-whisper."""
+        try:
+            model = self.get_whisper_model()
+            
+            # Transcribe with language detection if not specified
+            segments, info = model.transcribe(
+                audio_path,
+                language=language,
+                beam_size=5,
+                best_of=5,
+                temperature=0.0,
+                word_timestamps=True
+            )
+            
+            # Convert segments to list for easier handling
+            transcript_segments = []
+            for segment in segments:
+                transcript_segments.append({
+                    'start': segment.start,
+                    'end': segment.end,
+                    'text': segment.text.strip()
+                })
+            
+            result = {
+                'language': info.language,
+                'language_probability': info.language_probability,
+                'duration': info.duration,
+                'segments': transcript_segments
+            }
+            
+            logging.info(f"Transcription completed. Detected language: {info.language}")
+            return result
+            
+        except Exception as e:
+            logging.error(f"Transcription failed: {str(e)}")
+            raise Exception(f"Transcription failed: {str(e)}")
+    
+    def translate_transcript(self, segments, target_language):
+        """Translate transcript segments to target language."""
+        try:
+            translated_segments = []
+            
+            for segment in segments:
+                try:
+                    # Translate the text
+                    translated = self.translator.translate(
+                        segment['text'], 
+                        dest=target_language
+                    )
+                    
+                    translated_segments.append({
+                        'start': segment['start'],
+                        'end': segment['end'],
+                        'text': translated.text
+                    })
+                    
+                except Exception as e:
+                    logging.warning(f"Translation failed for segment: {str(e)}")
+                    # Keep original text if translation fails
+                    translated_segments.append(segment)
+            
+            logging.info(f"Translation to {target_language} completed")
+            return translated_segments
+            
+        except Exception as e:
+            logging.error(f"Translation failed: {str(e)}")
+            # Return original segments if translation fails
+            return segments
+    
+    def get_supported_languages(self):
+        """Get list of supported languages."""
+        return self.supported_languages
