@@ -1,5 +1,4 @@
-from app import app, socketio
+from simple_app import app
 
 if __name__ == '__main__':
-    # Run on port 8080 for Replit compatibility
-    socketio.run(app, host='0.0.0.0', port=8080, debug=True, use_reloader=False, log_output=False)
+    app.run(host='0.0.0.0', port=5000, debug=True)

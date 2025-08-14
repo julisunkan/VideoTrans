@@ -229,3 +229,39 @@ class TranscriptionService:
     def get_supported_languages(self):
         """Get list of supported languages."""
         return self.supported_languages
+    
+    def transcribe_file(self, file_path, language=None):
+        """Main method to transcribe a file (audio or video)."""
+        try:
+            session_id = os.path.basename(file_path).split('_')[0]
+            
+            # Determine if it's audio or video based on extension
+            ext = os.path.splitext(file_path)[1].lower()
+            video_extensions = {'.mp4', '.mkv', '.mov', '.avi', '.webm', '.flv'}
+            
+            if ext in video_extensions:
+                # Extract audio from video
+                audio_path = self.extract_audio(file_path, session_id)
+            else:
+                # Already audio, just clean it
+                audio_path = self.clean_audio(file_path, session_id)
+            
+            # Transcribe the audio
+            segments = self.transcribe_audio(audio_path, language)
+            
+            # Clean up temporary audio file if it was extracted
+            if ext in video_extensions and os.path.exists(audio_path):
+                try:
+                    os.remove(audio_path)
+                except:
+                    pass
+            
+            return segments
+            
+        except Exception as e:
+            logging.error(f"File transcription failed: {str(e)}")
+            raise
+    
+    def translate_segments(self, segments, target_language):
+        """Alias for translate_transcript for backward compatibility."""
+        return self.translate_transcript(segments, target_language)

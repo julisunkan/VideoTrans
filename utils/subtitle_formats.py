@@ -114,3 +114,18 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         except Exception as e:
             logging.error(f"ASS conversion failed: {str(e)}")
             raise
+    
+    def to_format(self, segments, format_type):
+        """Convert segments to specified format."""
+        if format_type.lower() == 'srt':
+            return self.to_srt(segments)
+        elif format_type.lower() == 'vtt':
+            return self.to_vtt(segments)
+        elif format_type.lower() == 'ass':
+            return self.to_ass(segments)
+        else:
+            raise ValueError(f"Unsupported format: {format_type}")
+    
+    def format_subtitles(self, segments, format_type):
+        """Alias for to_format for backward compatibility."""
+        return self.to_format(segments, format_type)
