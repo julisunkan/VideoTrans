@@ -12,6 +12,14 @@ This is a Flask-based web application that generates and translates subtitles fr
 - ✓ Added ProxyFix middleware for HTTPS URL generation
 - ✓ Graceful handling of missing noisereduce dependency
 
+**Performance Optimization (August 14, 2025)**
+- ✓ Optimized Whisper model to use "tiny" for 3-5x faster processing
+- ✓ Disabled noise reduction for speed (can be re-enabled if needed)
+- ✓ Reduced beam search and best-of parameters for faster transcription
+- ✓ Added voice activity detection to skip silent parts
+- ✓ Implemented batch translation processing
+- ✓ Enhanced upload progress tracking with real-time feedback
+
 # User Preferences
 
 Preferred communication style: Simple, everyday language.

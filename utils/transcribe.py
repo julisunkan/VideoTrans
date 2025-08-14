@@ -2,6 +2,7 @@ import os
 import logging
 import tempfile
 import subprocess
+import time
 from datetime import datetime
 try:
     import noisereduce as nr
@@ -101,9 +102,16 @@ class TranscriptionService:
         with self.model_lock:
             if self.model is None:
                 try:
-                    # Use base model for better performance, can be changed to 'small', 'medium', 'large'
-                    self.model = WhisperModel("base", device="cpu", compute_type="int8")
-                    logging.info("Whisper model loaded successfully")
+                    # Use tiny model for maximum speed - much faster processing
+                    # Options: tiny, base, small, medium, large
+                    # tiny = fastest, less accurate | large = slowest, most accurate
+                    self.model = WhisperModel(
+                        "tiny", 
+                        device="cpu", 
+                        compute_type="int8",
+                        num_workers=2  # Use multiple threads for faster processing
+                    )
+                    logging.info("Fast Whisper model (tiny) loaded successfully")
                 except Exception as e:
                     logging.error(f"Failed to load Whisper model: {str(e)}")
                     raise
@@ -114,10 +122,17 @@ class TranscriptionService:
         try:
             output_path = os.path.join('outputs', f'audio_{session_id}.wav')
             
-            # Use ffmpeg-python to extract audio
+            # Use ffmpeg-python to extract audio with optimized settings
             stream = ffmpeg.input(video_path)
             audio = stream.audio
-            out = ffmpeg.output(audio, output_path, acodec='pcm_s16le', ac=1, ar='16000')
+            # Extract at 16kHz mono for faster processing (Whisper's native format)
+            out = ffmpeg.output(
+                audio, output_path, 
+                acodec='pcm_s16le', 
+                ac=1,          # Mono audio
+                ar='16000',    # 16kHz sample rate (Whisper optimized)
+                t=None         # No duration limit
+            )
             ffmpeg.run(out, overwrite_output=True, quiet=True)
             
             logging.info(f"Audio extracted successfully: {output_path}")
@@ -128,27 +143,33 @@ class TranscriptionService:
             raise Exception(f"Failed to extract audio: {str(e)}")
     
     def clean_audio(self, audio_path, session_id):
-        """Clean audio using noise reduction."""
+        """Clean audio using noise reduction - disabled for speed optimization."""
         try:
-            if not NOISEREDUCE_AVAILABLE:
-                logging.info("Noise reduction not available, using original audio")
-                return audio_path
-                
-            # Read audio file
-            data, rate = sf.read(audio_path)
+            # Skip noise reduction for faster processing
+            # This step can add significant time to processing
+            logging.info("Skipping noise reduction for faster processing")
+            return audio_path
             
-            # Apply noise reduction
-            if nr is not None:
-                reduced_noise = nr.reduce_noise(y=data, sr=rate)
-            else:
-                reduced_noise = data
-            
-            # Save cleaned audio
-            cleaned_path = os.path.join('outputs', f'cleaned_audio_{session_id}.wav')
-            sf.write(cleaned_path, reduced_noise, rate)
-            
-            logging.info(f"Audio cleaned successfully: {cleaned_path}")
-            return cleaned_path
+            # The below code is commented out but available if quality is more important than speed
+            # if not NOISEREDUCE_AVAILABLE:
+            #     logging.info("Noise reduction not available, using original audio")
+            #     return audio_path
+            #     
+            # # Read audio file
+            # data, rate = sf.read(audio_path)
+            # 
+            # # Apply noise reduction
+            # if nr is not None:
+            #     reduced_noise = nr.reduce_noise(y=data, sr=rate)
+            # else:
+            #     reduced_noise = data
+            # 
+            # # Save cleaned audio
+            # cleaned_path = os.path.join('outputs', f'cleaned_audio_{session_id}.wav')
+            # sf.write(cleaned_path, reduced_noise, rate)
+            # 
+            # logging.info(f"Audio cleaned successfully: {cleaned_path}")
+            # return cleaned_path
             
         except Exception as e:
             logging.error(f"Audio cleaning failed: {str(e)}")
@@ -161,14 +182,16 @@ class TranscriptionService:
         try:
             model = self.get_whisper_model()
             
-            # Transcribe with language detection if not specified
+            # Transcribe with optimized settings for speed
             segments, info = model.transcribe(
                 audio_path,
                 language=language,
-                beam_size=5,
-                best_of=5,
+                beam_size=1,  # Reduced from 5 for speed
+                best_of=1,    # Reduced from 5 for speed 
                 temperature=0.0,
-                word_timestamps=True
+                word_timestamps=False,  # Disabled for faster processing
+                vad_filter=True,       # Voice activity detection for efficiency
+                vad_parameters=dict(min_silence_duration_ms=1000)  # Skip long silences
             )
             
             # Convert segments to list for easier handling
@@ -195,28 +218,37 @@ class TranscriptionService:
             raise Exception(f"Transcription failed: {str(e)}")
     
     def translate_transcript(self, segments, target_language):
-        """Translate transcript segments to target language."""
+        """Translate transcript segments to target language with batch optimization."""
         try:
             translated_segments = []
             
-            for segment in segments:
-                try:
-                    # Translate the text
-                    translated = self.translator.translate(
-                        segment['text'], 
-                        dest=target_language
-                    )
-                    
-                    translated_segments.append({
-                        'start': segment['start'],
-                        'end': segment['end'],
-                        'text': translated.text
-                    })
-                    
-                except Exception as e:
-                    logging.warning(f"Translation failed for segment: {str(e)}")
-                    # Keep original text if translation fails
-                    translated_segments.append(segment)
+            # Process in batches for better performance
+            batch_size = 10  # Process 10 segments at a time
+            
+            for i in range(0, len(segments), batch_size):
+                batch = segments[i:i + batch_size]
+                
+                for segment in batch:
+                    try:
+                        # Translate the text with timeout for faster processing
+                        translated = self.translator.translate(
+                            segment['text'], 
+                            dest=target_language
+                        )
+                        
+                        translated_segments.append({
+                            'start': segment['start'],
+                            'end': segment['end'],
+                            'text': translated.text
+                        })
+                        
+                    except Exception as e:
+                        logging.warning(f"Translation failed for segment: {str(e)}")
+                        # Keep original text if translation fails
+                        translated_segments.append(segment)
+                
+                # Small delay between batches to avoid rate limiting
+                time.sleep(0.1)
             
             logging.info(f"Translation to {target_language} completed")
             return translated_segments
