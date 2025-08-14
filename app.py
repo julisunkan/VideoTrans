@@ -129,7 +129,7 @@ def upload_file():
             'success': True,
             'filename': filename,
             'file_type': file_type,
-            'redirect': url_for('progress')
+            'redirect_url': url_for('progress')
         })
         
     except Exception as e:
