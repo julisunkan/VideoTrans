@@ -1,6 +1,16 @@
 # Overview
 
-This is a Flask-based web application that generates and translates subtitles from audio and video files. The application uses local Whisper models for speech-to-text transcription and free Google Translate API for subtitle translation. It supports multiple audio/video formats and provides subtitles in SRT, VTT, and ASS formats with real-time processing feedback via WebSockets.
+This is a Flask-based web application that generates and translates subtitles from audio and video files. Successfully migrated from Replit Agent to standard Replit environment on August 14, 2025. The application uses local Whisper models for speech-to-text transcription and free Google Translate API for subtitle translation. It supports multiple audio/video formats and provides subtitles in SRT, VTT, and ASS formats with real-time processing feedback via WebSockets.
+
+# Recent Changes
+
+**Migration Complete (August 14, 2025)**
+- ✓ Consolidated app.py with proper Flask-SocketIO integration
+- ✓ Enhanced security with session-based file access controls  
+- ✓ Implemented proper client/server separation
+- ✓ Fixed all route errors and security vulnerabilities
+- ✓ Added ProxyFix middleware for HTTPS URL generation
+- ✓ Graceful handling of missing noisereduce dependency
 
 # User Preferences
 
